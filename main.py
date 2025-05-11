@@ -49,16 +49,8 @@ logging.info("Conversation created.")
 
 # Send messages in the conversation
 logging.info(f"Sending message: '{USER_PROMPT}'")
-
-# Display the conversation response with streaming
-# print("\n" + "=" * 50)
-# print("ASSISTANT RESPONSE:")
-# print("=" * 50)
-
-# First, send a normal non-streaming message to initialize the conversation
-# This avoids the "list index out of range" error in the SDK
-logging.info("Sending initial message (streaming)...")
 response = conversation.send_message(USER_PROMPT)
+
 print(response.message)
 
 end_time = time.time()
