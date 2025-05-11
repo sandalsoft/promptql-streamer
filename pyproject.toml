@@ -8,4 +8,5 @@ dependencies = [
     "promptql-api-sdk>=0.1.1",
     "python-dotenv",
     "tabulate",
+    "yaspin>=3.1.0",
 ]

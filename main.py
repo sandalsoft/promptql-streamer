@@ -9,7 +9,7 @@ from tabulate import tabulate
 import pprint
 from yaspin import yaspin
 
-USER_PROMPT = "Tell me what you can do"
+USER_PROMPT = "Hello, ready to talk?"
 # USER_PROMPT = "How many iphone customers are there?"
 # USER_PROMPT = "Get the student performance data for the class 78be2705-b0cc-4294-8ac8-d439e1526c25 (Demo Class) and limit to 10 students. 1. use ids suffix for roster 2. Query AssessmentAssessmentCompletedEvent table with minimal fields 3. Skip enrollment checks and focus on assessments 4. Simplify the aggregations to use basic COUNT and SUM 5. Get the basic assessment data for the class 6. Keep the query simple without complex joins 7. Ignore visualizations"
 
@@ -45,11 +45,9 @@ def process_artifacts(conversation):
         logging.info("No artifacts found in this conversation.")
 
 
-def interactive_conversation(conversation, initial_prompt):
-    prompt = initial_prompt
+def interactive_conversation(conversation):
     while True:
-        if not prompt:
-            prompt = input("You: ")
+        prompt = input("You: ")
         if prompt.lower() in ["exit", "quit"]:
             print("Exiting conversation.")
             break
@@ -62,13 +60,15 @@ def interactive_conversation(conversation, initial_prompt):
                     if first_chunk:
                         spinner.ok("✔")
                         first_chunk = False
-                    print(chunk.message, end="", flush=True)
+                    # Only print if the chunk has a non-None message attribute
+                    message = getattr(chunk, "message", None)
+                    if message is not None:
+                        print(message, end="", flush=True)
                 print()  # New line after complete response
             except Exception as e:
                 spinner.fail("✗")
                 logging.error("Error during conversation: %s", str(e))
         process_artifacts(conversation)
-        prompt = input("\nYou: ")
 
 
 def main():
@@ -94,7 +94,29 @@ def main():
     )
     logging.info("Conversation created.")
 
-    interactive_conversation(conversation, initial_prompt)
+    # Warm-up call: initialize conversation with the initial prompt
+    try:
+        logging.info(
+            f"Initializing conversation with initial prompt: '{initial_prompt}'")
+        response = conversation.send_message(initial_prompt, stream=False)
+        print(response.message)
+        process_artifacts(conversation)
+        # Ensure the conversation has at least one assistant action to avoid index errors
+        if not conversation.interactions or not conversation.interactions[-1].assistant_actions:
+            from promptql_api_sdk.types.models import AssistantAction, Interaction, UserMessage
+            if conversation.interactions:
+                conversation.interactions[-1].assistant_actions = [AssistantAction()]
+            else:
+                conversation.interactions.append(
+                    Interaction(
+                        user_message=UserMessage(text=initial_prompt),
+                        assistant_actions=[AssistantAction()]
+                    )
+                )
+    except Exception as e:
+        logging.error("Error during initial conversation: %s", str(e))
+
+    interactive_conversation(conversation)
 
 
 if __name__ == "__main__":
