@@ -7,15 +7,13 @@ from dotenv import load_dotenv
 from tabulate import tabulate
 import pprint
 
-# USER_PROMPT = "How are you?"
+USER_PROMPT = "Tell me what you can do"
 # USER_PROMPT = "How many iphone customers are there?"
-USER_PROMPT = "Get the student performance data for the class 78be2705-b0cc-4294-8ac8-d439e1526c25 (Demo Class) and limit to 10 students. 1. use ids suffix for roster 2. Query AssessmentAssessmentCompletedEvent table with minimal fields 3. Skip enrollment checks and focus on assessments 4. Simplify the aggregations to use basic COUNT and SUM 5. Get the basic assessment data for the class 6. Keep the query simple without complex joins 7. Ignore visualizations"
+# USER_PROMPT = "Get the student performance data for the class 78be2705-b0cc-4294-8ac8-d439e1526c25 (Demo Class) and limit to 10 students. 1. use ids suffix for roster 2. Query AssessmentAssessmentCompletedEvent table with minimal fields 3. Skip enrollment checks and focus on assessments 4. Simplify the aggregations to use basic COUNT and SUM 5. Get the basic assessment data for the class 6. Keep the query simple without complex joins 7. Ignore visualizations"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Function to pretty-print a dictionary artifact
 
 
 def print_dict_artifact(artifact):
@@ -32,7 +30,8 @@ load_dotenv(dotenv_path='.env')
 logging.info("Environment variables loaded.")
 
 # Initialize the client
-logging.info("Initializing PromptQLClient...")
+logging.info("Initializing PromptQLClient... Starting timer.")
+start_time = time.time()
 
 client = PromptQLClient(
     api_key=os.environ.get("PROMPTQL_APIKEY", ""),
@@ -41,9 +40,7 @@ client = PromptQLClient(
     timezone=os.environ.get("PROMPTQL_TIMEZONE", "America/New_York"),
 )
 logging.info("PromptQLClient initialized.")
-response = client.query(USER_PROMPT)
 
-# Create a conversation
 logging.info("Creating conversation...")
 conversation = client.create_conversation(
     system_instructions="You are a helpful assistant that provides information about the data you have access to."
@@ -52,44 +49,19 @@ logging.info("Conversation created.")
 
 # Send messages in the conversation
 logging.info(f"Sending message: '{USER_PROMPT}'")
-start_time = time.time()
 
 # Display the conversation response with streaming
-print("\n" + "=" * 50)
-print("ASSISTANT RESPONSE:")
-print("=" * 50)
+# print("\n" + "=" * 50)
+# print("ASSISTANT RESPONSE:")
+# print("=" * 50)
 
 # First, send a normal non-streaming message to initialize the conversation
 # This avoids the "list index out of range" error in the SDK
-logging.info("Sending initial message (non-streaming)...")
+logging.info("Sending initial message (streaming)...")
 response = conversation.send_message(USER_PROMPT)
-final_answer = response.message
 print(response.message)
 
-# For follow-up questions, we could use streaming
-# Commented out for now as it's causing errors on the first message
-"""
-print("\n" + "=" * 50)
-print("FOLLOW-UP (streaming):")
-print("=" * 50)
-
-full_response = ""
-try:
-    # Create a streaming response for a follow-up question
-    for chunk in conversation.send_message("Give me more details", stream=True):
-        if hasattr(chunk, "message") and chunk.message:
-            print(chunk.message, end="", flush=True)
-            full_response += chunk.message
-except Exception as e:
-    logging.error(f"Error during streaming: {e}", exc_info=True)
-    # Fallback to non-streaming in case of error
-    logging.info("Falling back to non-streaming mode...")
-    response = conversation.send_message("Give me more details")
-    print(response.message)
-"""
-
 end_time = time.time()
-print("\n" + "=" * 50)  # End of response
 logging.info(f"Received response in {end_time - start_time:.2f} seconds.")
 
 
@@ -156,10 +128,10 @@ else:
     logging.info("No artifacts to process.")
 
 
-# Print the final answer as a separate output
-print("\n" + "=" * 50)
-print("FINAL ANSWER:")
-print("=" * 50)
-print(final_answer)
+# # Print the final answer as a separate output
+# print("\n" + "=" * 50)
+# print("FINAL ANSWER:")
+# print("=" * 50)
+# print(final_answer)
 
 logging.info("Script finished.")

@@ -59,7 +59,6 @@ name = "evalset-testing"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "phoenix" },
     { name = "promptql-api-sdk" },
     { name = "python-dotenv" },
     { name = "tabulate" },
@@ -67,7 +66,6 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "phoenix", specifier = ">=0.9.1" },
     { name = "promptql-api-sdk", specifier = ">=0.1.1" },
     { name = "python-dotenv" },
     { name = "tabulate" },
@@ -81,12 +79,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl", hash = "sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3", size = 70442 },
 ]
-
-[[package]]
-name = "phoenix"
-version = "0.9.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d9/c1/ceb5ee9a7e70572741017fcf33b02b48bee4caa8ed8b0dfc2cbe6d299047/phoenix-0.9.1.zip", hash = "sha256:16c5d61d2e13c0ece7d2f656bcbd4532755ca36c1a3753f9158a5d53f58ebb20", size = 3625 }
 
 [[package]]
 name = "promptql-api-sdk"
