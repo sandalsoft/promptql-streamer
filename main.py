@@ -1,11 +1,13 @@
 import os
 import logging
 import time
+import argparse
 from promptql_api_sdk import PromptQLClient
 from promptql_api_sdk.types.models import HasuraLLMProvider
 from dotenv import load_dotenv
 from tabulate import tabulate
 import pprint
+from yaspin import yaspin
 
 USER_PROMPT = "Tell me what you can do"
 # USER_PROMPT = "How many iphone customers are there?"
@@ -16,122 +18,84 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def print_dict_artifact(artifact):
-    if isinstance(artifact, dict):
-        print("\nDictionary Artifact:")
-        pprint.pprint(artifact, indent=2)
-        return True
-    return False
+def get_initial_prompt():
+    parser = argparse.ArgumentParser(description="Interactive PromptQL CLI")
+    parser.add_argument("user_prompt", nargs="?", default=USER_PROMPT,
+                        help="User prompt to send initially (defaults to 'Tell me what you can do')")
+    args = parser.parse_args()
+    return args.user_prompt
 
 
-# Load environment variables from .env.example
-logging.info("Loading environment variables...")
-load_dotenv(dotenv_path='.env')
-logging.info("Environment variables loaded.")
-
-# Initialize the client
-logging.info("Initializing PromptQLClient... Starting timer.")
-start_time = time.time()
-
-client = PromptQLClient(
-    api_key=os.environ.get("PROMPTQL_APIKEY", ""),
-    ddn_url=os.environ.get("PROMPTQL_DDN_URL", "your-ddn-sql-endpoint-url"),
-    llm_provider=HasuraLLMProvider(),
-    timezone=os.environ.get("PROMPTQL_TIMEZONE", "America/New_York"),
-)
-logging.info("PromptQLClient initialized.")
-
-logging.info("Creating conversation...")
-conversation = client.create_conversation(
-    system_instructions="You are a helpful assistant that provides information about the data you have access to."
-)
-logging.info("Conversation created.")
-
-# Send messages in the conversation
-logging.info(f"Sending message: '{USER_PROMPT}'")
-
-# Display the conversation response with streaming
-# print("\n" + "=" * 50)
-# print("ASSISTANT RESPONSE:")
-# print("=" * 50)
-
-# First, send a normal non-streaming message to initialize the conversation
-# This avoids the "list index out of range" error in the SDK
-logging.info("Sending initial message (streaming)...")
-response = conversation.send_message(USER_PROMPT)
-print(response.message)
-
-end_time = time.time()
-logging.info(f"Received response in {end_time - start_time:.2f} seconds.")
-
-
-# Process artifacts - Try accessing artifacts from the Conversation object
-logging.info("Processing artifacts...")
-artifacts_found = False
-if hasattr(conversation, 'artifacts') and conversation.artifacts:
-    logging.info(f"Found {len(conversation.artifacts)} artifact(s).")
-    artifacts_found = True
-    print("\n--- Artifacts ---")
-    for i, artifact in enumerate(conversation.artifacts):
-        logging.debug(f"Processing artifact {i+1}...")
-
-        # Extract data from artifact if available
-        data = None
-        if hasattr(artifact, 'data'):
-            data = artifact.data
-            logging.info(f"Artifact {i+1} has 'data' property.")
-        else:
-            data = artifact  # Use the artifact itself if no data attribute
-            logging.debug(
-                f"Artifact {i+1} has no 'data' property, using artifact itself.")
-
-        # Skip None data
-        if data is None:
-            logging.info(f"Artifact {i+1} data is None, skipping.")
-            continue
-
-        # Process data based on its type
-        # Check if the data is a list of dictionaries (common tabular format)
-        if isinstance(data, list) and data and isinstance(data[0], dict):
-            try:
-                # Use tabulate for list of dicts
+def process_artifacts(conversation):
+    if hasattr(conversation, 'artifacts') and conversation.artifacts:
+        print("\n--- Artifacts ---")
+        for i, artifact in enumerate(conversation.artifacts, start=1):
+            data = artifact.data if hasattr(artifact, 'data') else artifact
+            if data is None:
+                print(f"Artifact {i}: No data")
+            elif isinstance(data, list) and data and isinstance(data[0], dict):
                 headers = data[0].keys()
                 rows = [list(item.values()) for item in data]
-                print("\nTabular Data:")
                 print(tabulate(rows, headers=headers, tablefmt="grid"))
-                logging.info(
-                    f"Artifact {i+1} data (list of dicts) processed and printed as table.")
+            elif isinstance(data, dict):
+                pprint.pprint(data, indent=2)
+            else:
+                print(f"Artifact {i} (type: {type(data).__name__}): {data}")
+    else:
+        logging.info("No artifacts found in this conversation.")
+
+
+def interactive_conversation(conversation, initial_prompt):
+    prompt = initial_prompt
+    while True:
+        if not prompt:
+            prompt = input("You: ")
+        if prompt.lower() in ["exit", "quit"]:
+            print("Exiting conversation.")
+            break
+        logging.info(f"Sending message: '{prompt}'")
+        with yaspin(text="Waiting for response...", color="cyan") as spinner:
+            try:
+                streamer = conversation.send_message(prompt, stream=True)
+                first_chunk = True
+                for chunk in streamer:
+                    if first_chunk:
+                        spinner.ok("✔")
+                        first_chunk = False
+                    print(chunk.message, end="", flush=True)
+                print()  # New line after complete response
             except Exception as e:
-                print("\nError formatting tabular data: {e}")
-                # Fallback only if we need to debug
-                # print(data)
-                logging.error(
-                    f"Error formatting artifact {i+1} data as table: {e}", exc_info=True)
-        # Check if data is a dictionary
-        elif isinstance(data, dict):
-            print("\nDictionary Data:")
-            pprint.pprint(data, indent=2)
-            logging.info(
-                f"Artifact {i+1} data (dict) processed and pretty-printed.")
-        else:
-            # Print other data types if necessary
-            print(f"\nArtifact Data (type: {type(data).__name__}):")
-            print(data)
-            logging.info(
-                f"Artifact {i+1} data (type: {type(data).__name__}) printed as is.")
-else:
-    logging.info("No artifacts found in the conversation.")
-
-if artifacts_found:
-    logging.info("Finished processing artifacts.")
-else:
-    logging.info("No artifacts to process.")
+                spinner.fail("✗")
+                logging.error("Error during conversation: %s", str(e))
+        process_artifacts(conversation)
+        prompt = input("\nYou: ")
 
 
-# # Print the final answer as a separate output
-# print("\n" + "=" * 50)
-# print("FINAL ANSWER:")
-# print("=" * 50)
-# print(final_answer)
+def main():
+    # Load environment variables from .env.example (not .env as instructed)
+    load_dotenv(dotenv_path='.env')
+    logging.info("Environment variables loaded.")
 
-logging.info("Script finished.")
+    initial_prompt = get_initial_prompt()
+
+    logging.info("Initializing PromptQLClient...")
+    client = PromptQLClient(
+        api_key=os.environ.get("PROMPTQL_APIKEY", ""),
+        ddn_url=os.environ.get(
+            "PROMPTQL_DDN_URL", "your-ddn-sql-endpoint-url"),
+        llm_provider=HasuraLLMProvider(),
+        timezone=os.environ.get("PROMPTQL_TIMEZONE", "America/New_York"),
+    )
+    logging.info("PromptQLClient initialized.")
+
+    logging.info("Creating conversation...")
+    conversation = client.create_conversation(
+        system_instructions="You are a helpful assistant that provides information about the data you have access to."
+    )
+    logging.info("Conversation created.")
+
+    interactive_conversation(conversation, initial_prompt)
+
+
+if __name__ == "__main__":
+    main()
