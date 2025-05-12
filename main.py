@@ -45,6 +45,7 @@ def process_artifacts(conversation):
 
 def interactive_conversation(conversation, initial_prompt=None):
     first = True
+    first_user_message = True  # Track if this is the very first real user prompt
     while True:
         if first and initial_prompt is not None:
             prompt = initial_prompt
@@ -55,22 +56,32 @@ def interactive_conversation(conversation, initial_prompt=None):
             print("Exiting conversation.")
             break
         logging.info(f"Sending message: '{prompt}'")
+        # Use non-streaming mode for the first user prompt to avoid premature-end errors from the API
+        stream_mode = False if first_user_message else True
         with yaspin(text="Waiting for response...", color="cyan") as spinner:
             try:
-                streamer = conversation.send_message(prompt, stream=True)
-                first_chunk = True
-                for chunk in streamer:
-                    if first_chunk:
-                        spinner.ok("✔")
-                        first_chunk = False
-                    # Only print if the chunk has a non-None message attribute
-                    message = getattr(chunk, "message", None)
-                    if message is not None:
-                        print(message, end="", flush=True)
-                print()  # New line after complete response
+                if stream_mode:
+                    streamer = conversation.send_message(prompt, stream=True)
+                    first_chunk = True
+                    for chunk in streamer:
+                        if first_chunk:
+                            spinner.ok("✔")
+                            first_chunk = False
+                        # Only print if the chunk has a non-None message attribute
+                        message = getattr(chunk, "message", None)
+                        if message is not None:
+                            print(message, end="", flush=True)
+                    print()  # New line after complete response
+                else:
+                    response = conversation.send_message(prompt, stream=False)
+                    spinner.ok("✔")
+                    print(response.message)
             except Exception as e:
                 spinner.fail("✗")
                 logging.error("Error during conversation: %s", str(e))
+        # After first successful send, enable streaming for subsequent prompts
+        if first_user_message:
+            first_user_message = False
         process_artifacts(conversation)
 
 
@@ -98,6 +109,35 @@ def main():
     )
     logging.info("Conversation created.")
 
+    # Helper to ensure the very first interaction in the list is API-compliant
+    def _ensure_first_interaction():
+        try:
+            from promptql_api_sdk.types.models import AssistantAction, Interaction, UserMessage
+            if not hasattr(conversation, "interactions"):
+                conversation.interactions = []  # type: ignore[attr-defined]
+
+            if conversation.interactions:
+                # Patch existing first interaction if user_message is empty or whitespace
+                um = getattr(
+                    conversation.interactions[0], "user_message", None)
+                if um is None or not getattr(um, "text", "").strip():
+                    conversation.interactions[0].user_message = UserMessage(
+                        text="(init)")
+                if not conversation.interactions[0].assistant_actions:
+                    conversation.interactions[0].assistant_actions = [
+                        AssistantAction(message="(init)")]
+            else:
+                # Create new compliant interaction
+                conversation.interactions.append(
+                    Interaction(
+                        user_message=UserMessage(text="(init)"),
+                        assistant_actions=[AssistantAction(message="(init)")]
+                    )
+                )
+        except Exception as e:
+            logging.debug(
+                "Could not ensure first interaction compliance: %s", str(e))
+
     # Only send the initial prompt automatically if it was provided by the user
     if user_supplied_prompt:
         try:
@@ -106,41 +146,14 @@ def main():
             response = conversation.send_message(initial_prompt, stream=False)
             print(response.message)
             process_artifacts(conversation)
-            # Ensure the conversation has at least one assistant action to avoid index errors
-            if not conversation.interactions or not conversation.interactions[-1].assistant_actions:
-                from promptql_api_sdk.types.models import AssistantAction, Interaction, UserMessage
-                if conversation.interactions:
-                    conversation.interactions[-1].assistant_actions = [
-                        AssistantAction()]
-                else:
-                    conversation.interactions.append(
-                        Interaction(
-                            user_message=UserMessage(text=initial_prompt),
-                            assistant_actions=[AssistantAction()]
-                        )
-                    )
+            _ensure_first_interaction()
         except Exception as e:
             logging.error("Error during initial conversation: %s", str(e))
         # Start interactive mode, but don't repeat the initial prompt
         interactive_conversation(conversation, initial_prompt=None)
     else:
-        # No initial prompt sent, ensure conversation has at least one assistant action placeholder
-        try:
-            from promptql_api_sdk.types.models import AssistantAction, Interaction, UserMessage
-            # Safeguard: create a dummy interaction so downstream indexing in the SDK does not fail
-            if not hasattr(conversation, "interactions"):
-                conversation.interactions = []  # type: ignore[attr-defined]
-            if not conversation.interactions:
-                conversation.interactions.append(
-                    Interaction(
-                        user_message=UserMessage(text=""),
-                        assistant_actions=[AssistantAction()]
-                    )
-                )
-        except Exception as e:
-            # Log but continue; if SDK handles empty interactions gracefully, we don't want to crash here
-            logging.debug(
-                "Could not initialize placeholder interaction: %s", str(e))
+        # No initial prompt sent; make sure first interaction is compliant
+        _ensure_first_interaction()
 
         interactive_conversation(conversation, initial_prompt=None)
 
