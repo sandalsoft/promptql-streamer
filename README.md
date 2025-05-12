@@ -7,7 +7,24 @@ The application now supports an interactive conversation mode using the PromptQL
 - After each response, the application processes any artifacts and then prompts the user for the next input.
 - To exit the conversation, type "exit" or "quit" at the prompt.
 
-### Usage
+### Installation
+
+1. **Clone the repository** and navigate to the project directory.
+2. **Install Python 3.12 or higher** (see your OS instructions).
+3. **Install dependencies:**
+
+```
+pip install -r requirements.txt
+```
+
+4. **Set up environment variables:**
+   - Copy `.env.example` to `.env` and fill in the required values.
+
+```
+cp .env.example .env
+```
+
+### Running the Application
 
 Run the application with an optional initial prompt:
 
@@ -20,3 +37,19 @@ If no argument is provided, the application defaults to using:
 ```
 Tell me what you can do
 ```
+
+### Running Tests
+
+To run the tests, install test dependencies:
+
+```
+pip install pytest pandas phoenix
+```
+
+Then run:
+
+```
+pytest
+```
+
+_Note: `pandas`, `phoenix`, and `pytest` are only required for testing and not for running the main application._

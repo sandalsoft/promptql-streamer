@@ -9,9 +9,7 @@ from tabulate import tabulate
 import pprint
 from yaspin import yaspin
 
-USER_PROMPT = "Hello, ready to talk?"
-# USER_PROMPT = "How many iphone customers are there?"
-# USER_PROMPT = "Get the student performance data for the class 78be2705-b0cc-4294-8ac8-d439e1526c25 (Demo Class) and limit to 10 students. 1. use ids suffix for roster 2. Query AssessmentAssessmentCompletedEvent table with minimal fields 3. Skip enrollment checks and focus on assessments 4. Simplify the aggregations to use basic COUNT and SUM 5. Get the basic assessment data for the class 6. Keep the query simple without complex joins 7. Ignore visualizations"
+USER_PROMPT = "Tell me what you can do"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
@@ -45,9 +43,14 @@ def process_artifacts(conversation):
         logging.info("No artifacts found in this conversation.")
 
 
-def interactive_conversation(conversation):
+def interactive_conversation(conversation, initial_prompt=None):
+    first = True
     while True:
-        prompt = input("You: ")
+        if first and initial_prompt is not None:
+            prompt = initial_prompt
+            first = False
+        else:
+            prompt = input("You: ")
         if prompt.lower() in ["exit", "quit"]:
             print("Exiting conversation.")
             break
@@ -116,7 +119,7 @@ def main():
     except Exception as e:
         logging.error("Error during initial conversation: %s", str(e))
 
-    interactive_conversation(conversation)
+    interactive_conversation(conversation, initial_prompt)
 
 
 if __name__ == "__main__":
