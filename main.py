@@ -80,6 +80,7 @@ def main():
     logging.info("Environment variables loaded.")
 
     initial_prompt = get_initial_prompt()
+    user_supplied_prompt = initial_prompt != USER_PROMPT
 
     logging.info("Initializing PromptQLClient...")
     client = PromptQLClient(
@@ -97,29 +98,34 @@ def main():
     )
     logging.info("Conversation created.")
 
-    # Warm-up call: initialize conversation with the initial prompt
-    try:
-        logging.info(
-            f"Initializing conversation with initial prompt: '{initial_prompt}'")
-        response = conversation.send_message(initial_prompt, stream=False)
-        print(response.message)
-        process_artifacts(conversation)
-        # Ensure the conversation has at least one assistant action to avoid index errors
-        if not conversation.interactions or not conversation.interactions[-1].assistant_actions:
-            from promptql_api_sdk.types.models import AssistantAction, Interaction, UserMessage
-            if conversation.interactions:
-                conversation.interactions[-1].assistant_actions = [AssistantAction()]
-            else:
-                conversation.interactions.append(
-                    Interaction(
-                        user_message=UserMessage(text=initial_prompt),
-                        assistant_actions=[AssistantAction()]
+    # Only send the initial prompt automatically if it was provided by the user
+    if user_supplied_prompt:
+        try:
+            logging.info(
+                f"Initializing conversation with initial prompt: '{initial_prompt}'")
+            response = conversation.send_message(initial_prompt, stream=False)
+            print(response.message)
+            process_artifacts(conversation)
+            # Ensure the conversation has at least one assistant action to avoid index errors
+            if not conversation.interactions or not conversation.interactions[-1].assistant_actions:
+                from promptql_api_sdk.types.models import AssistantAction, Interaction, UserMessage
+                if conversation.interactions:
+                    conversation.interactions[-1].assistant_actions = [
+                        AssistantAction()]
+                else:
+                    conversation.interactions.append(
+                        Interaction(
+                            user_message=UserMessage(text=initial_prompt),
+                            assistant_actions=[AssistantAction()]
+                        )
                     )
-                )
-    except Exception as e:
-        logging.error("Error during initial conversation: %s", str(e))
-
-    interactive_conversation(conversation, initial_prompt)
+        except Exception as e:
+            logging.error("Error during initial conversation: %s", str(e))
+        # Start interactive mode, but don't repeat the initial prompt
+        interactive_conversation(conversation, initial_prompt=None)
+    else:
+        # No initial prompt sent, let user type first prompt
+        interactive_conversation(conversation, initial_prompt=None)
 
 
 if __name__ == "__main__":

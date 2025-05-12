@@ -61,3 +61,58 @@ def test_interactive_conversation_exit(monkeypatch, capsys):
         interactive_conversation(fake_conv, "Initial prompt")
     output = f.getvalue()
     assert "Exiting conversation." in output
+
+
+def test_initial_prompt_sent_only_if_user_supplied(monkeypatch):
+    # Simulate user-supplied prompt
+    monkeypatch.setattr(sys, "argv", ["main.py", "Hello AI!"])
+    prompt = get_initial_prompt()
+    assert prompt == "Hello AI!"
+    # Simulate default prompt
+    monkeypatch.setattr(sys, "argv", ["main.py"])
+    prompt2 = get_initial_prompt()
+    assert prompt2 == "Tell me what you can do"
+
+    # Now test the logic for sending the prompt
+    # We'll patch interactive_conversation to capture its arguments
+    called_args = {}
+
+    def fake_interactive_conversation(conv, initial_prompt=None):
+        called_args['initial_prompt'] = initial_prompt
+    # Patch interactive_conversation in main's module
+    import main as main_mod
+    orig_interactive = main_mod.interactive_conversation
+    main_mod.interactive_conversation = fake_interactive_conversation
+
+    # Patch PromptQLClient and conversation
+    class DummyConv:
+        def __init__(self):
+            self.interactions = []
+
+        def send_message(self, prompt, stream=False):
+            class Resp:
+                message = f"Response to: {prompt}"
+            return Resp()
+
+    class DummyClient:
+        def create_conversation(self, **kwargs):
+            return DummyConv()
+    monkeypatch.setattr(main_mod, "PromptQLClient",
+                        lambda *a, **k: DummyClient())
+    monkeypatch.setattr(main_mod, "load_dotenv", lambda *a, **k: None)
+    monkeypatch.setattr(main_mod, "process_artifacts", lambda *a, **k: None)
+    monkeypatch.setattr(main_mod, "HasuraLLMProvider", lambda *a, **k: None)
+    # Test with user-supplied prompt
+    monkeypatch.setattr(sys, "argv", ["main.py", "Hello AI!"])
+    called_args.clear()
+    main_mod.main()
+    # Should not pass initial_prompt to interactive_conversation
+    assert called_args['initial_prompt'] is None
+    # Test with default prompt
+    monkeypatch.setattr(sys, "argv", ["main.py"])
+    called_args.clear()
+    main_mod.main()
+    # Should not pass initial_prompt to interactive_conversation
+    assert called_args['initial_prompt'] is None
+    # Restore
+    main_mod.interactive_conversation = orig_interactive

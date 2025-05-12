@@ -2,7 +2,7 @@
 
 The application now supports an interactive conversation mode using the PromptQL Python SDK.
 
-- When running the application (`main.py`), if no user prompt is supplied as an argument, the default prompt "Tell me what you can do" is used.
+- When running the application (`main.py`), if a user prompt is supplied as an argument, it is sent automatically to start the conversation. If no prompt is supplied, the user is prompted for their first input (the default prompt is not sent automatically).
 - The CLI dynamically accepts user input, streams responses as they are received from the PromptQL API, and displays a spinner (powered by Yaspin) while waiting for responses.
 - After each response, the application processes any artifacts and then prompts the user for the next input.
 - To exit the conversation, type "exit" or "quit" at the prompt.
