@@ -124,7 +124,24 @@ def main():
         # Start interactive mode, but don't repeat the initial prompt
         interactive_conversation(conversation, initial_prompt=None)
     else:
-        # No initial prompt sent, let user type first prompt
+        # No initial prompt sent, ensure conversation has at least one assistant action placeholder
+        try:
+            from promptql_api_sdk.types.models import AssistantAction, Interaction, UserMessage
+            # Safeguard: create a dummy interaction so downstream indexing in the SDK does not fail
+            if not hasattr(conversation, "interactions"):
+                conversation.interactions = []  # type: ignore[attr-defined]
+            if not conversation.interactions:
+                conversation.interactions.append(
+                    Interaction(
+                        user_message=UserMessage(text=""),
+                        assistant_actions=[AssistantAction()]
+                    )
+                )
+        except Exception as e:
+            # Log but continue; if SDK handles empty interactions gracefully, we don't want to crash here
+            logging.debug(
+                "Could not initialize placeholder interaction: %s", str(e))
+
         interactive_conversation(conversation, initial_prompt=None)
 
 
